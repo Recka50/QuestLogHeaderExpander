@@ -1,5 +1,5 @@
 ## Interface: 16001
-## Title: Quest Expand All
+## Title: Quest Log Header Expander
 ## SavedVariables: QuestLogHeaderExpanderDB
 ## Notes: Adds an Expand All button to the quest log.
 ## Author: Drink_Bepis
