@@ -1,4 +1,4 @@
--- QuestExpandAll.lua
+-- QuestLogHeaderExpander.lua
 -- Interface: 16001
 
 local addon = CreateFrame("Frame")
@@ -23,23 +23,23 @@ local MODES = {
 }
 
 local function InitDB()
-    QuestExpandAllDB = QuestExpandAllDB or {}
+    QuestLogHeaderExpanderDB = QuestLogHeaderExpanderDB or {}
     for k, v in pairs(DEFAULTS) do
-        if QuestExpandAllDB[k] == nil then
-            QuestExpandAllDB[k] = v
+        if QuestLogHeaderExpanderDB[k] == nil then
+            QuestLogHeaderExpanderDB[k] = v
         end
     end
 end
 
 local function GetMode()
-    return QuestExpandAllDB.mode
+    return QuestLogHeaderExpanderDB.mode
 end
 
 local function SetMode(value)
     if modeSetting then
         modeSetting:SetValue(value)
     else
-        QuestExpandAllDB.mode = value
+        QuestLogHeaderExpanderDB.mode = value
     end
 end
 
@@ -99,7 +99,7 @@ local function ApplyDefaultState()
     if mode == "expanded" or mode == "collapsed" then
         target = mode
    -- elseif mode == "remember" then
-   --     target = QuestExpandAllDB.lastState
+   --     target = QuestLogHeaderExpanderDB.lastState
     end
 
     if target then
@@ -134,9 +134,9 @@ local function CreateOptionsPanel()
 
     modeSetting = Settings.RegisterAddOnSetting(
         category,
-        "QUESTEXPANDALL_MODE",
+        "QuestLogHeaderExpander_MODE",
         "mode",
-        QuestExpandAllDB,
+        QuestLogHeaderExpanderDB,
         Settings.VarType.String,
         "Quest header behaviour",
         DEFAULTS.mode
@@ -171,7 +171,7 @@ local function CreateExpandButton()
     local parent = QuestMapFrame and QuestMapFrame.QuestsFrame
     if not parent then return end
 
-    button = CreateFrame("Button", "QuestExpandAllButton", parent, "UIPanelButtonTemplate")
+    button = CreateFrame("Button", "QuestLogHeaderExpanderButton", parent, "UIPanelButtonTemplate")
     button:SetSize(50, 20)
 
     if QuestLogQuestCount then
@@ -190,7 +190,7 @@ local function CreateExpandButton()
 
         local expanding = not AreAllHeadersExpanded()
         SetAllHeaders(expanding)
-        QuestExpandAllDB.lastState = expanding and "expanded" or "collapsed"
+        QuestLogHeaderExpanderDB.lastState = expanding and "expanded" or "collapsed"
     end)
 
     button:SetScript("OnEnter", function(self)

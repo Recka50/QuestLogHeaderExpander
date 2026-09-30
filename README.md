@@ -1,4 +1,4 @@
-# Quest Expand All
+# Quest Log Header Expander
 
 A small World of Warcraft addon that adds an **expand/collapse all** button to the quest log, so you can open or close every zone header in one click instead of only getting the zone you're currently in.
 
@@ -22,11 +22,11 @@ Built for **World of Warcraft Forever** using the retail UI API. Interface versi
 ## Installation
 
 1. Download or clone this repository.
-2. Make sure the folder is named `QuestExpandAll` (it must match the `.toc` file name).
+2. Make sure the folder is named `QuestLogHeaderExpander` (it must match the `.toc` file name).
 3. Copy it into your game's addons directory:
 
    ```
-   <WoW install>/Interface/AddOns/QuestExpandAll/
+   <WoW install>/Interface/AddOns/QuestLogHeaderExpander/
    ```
 
 4. Fully restart the game (or at least fully log out/in). This is required for a first-time run.
@@ -34,9 +34,9 @@ Built for **World of Warcraft Forever** using the retail UI API. Interface versi
 Your folder should look like this:
 
 ```
-QuestExpandAll/
-├── QuestExpandAll.toc
-├── QuestExpandAll.lua
+QuestLogHeaderExpander/
+├── QuestLogHeaderExpander.toc
+├── QuestLogHeaderExpander.lua
 └── README.md
 ```
 
@@ -51,7 +51,7 @@ QuestExpandAll/
 
 ## Configuration
 
-Settings are stored per account in the `QuestExpandAllDB` saved variable:
+Settings are stored per account in the `QuestLogHeaderExpanderDB` saved variable:
 
 | Key | Values | Description |
 | --- | --- | --- |

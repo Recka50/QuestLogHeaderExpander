@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: Quest Expand All
-## SavedVariables: QuestExpandAllDB
+## SavedVariables: QuestLogHeaderExpanderDB
 ## Notes: Adds an Expand All button to the quest log.
 ## Author: Drink_Bepis
-## Version: 0.3
+## Version: 0.4
 
-QuestExpandAll.lua
+QuestLogHeaderExpander.lua
