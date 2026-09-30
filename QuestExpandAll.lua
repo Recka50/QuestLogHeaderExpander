@@ -2,7 +2,46 @@
 -- Interface: 16001
 
 local addon = CreateFrame("Frame")
-local button  -- set in CreateExpandButton
+local button
+local modeSetting
+
+--------------------------------------------------
+-- Saved variables / modes
+--------------------------------------------------
+
+local DEFAULTS = {
+    mode = "default",   
+    lastState = nil,    
+}
+
+local MODES = {
+    { value = "default",   label = "Default" },
+    { value = "collapsed", label = "Always collapsed" },
+    { value = "expanded",  label = "Always expanded" },
+    -- Not working, to fix later
+    -- { value = "remember",  label = "Remember previous state" },
+}
+
+local function InitDB()
+    QuestExpandAllDB = QuestExpandAllDB or {}
+    for k, v in pairs(DEFAULTS) do
+        if QuestExpandAllDB[k] == nil then
+            QuestExpandAllDB[k] = v
+        end
+    end
+end
+
+local function GetMode()
+    return QuestExpandAllDB.mode
+end
+
+local function SetMode(value)
+    if modeSetting then
+        modeSetting:SetValue(value)
+    else
+        QuestExpandAllDB.mode = value
+    end
+end
 
 --------------------------------------------------
 -- Helpers
@@ -16,15 +55,6 @@ local function AreAllHeadersExpanded()
         end
     end
     return true
-end
-
-local function UpdateButton()
-    if not button then return end
-
-    local text = AreAllHeadersExpanded() and "- All" or "+ All"
-    if button:GetText() ~= text then
-        button:SetText(text)
-    end
 end
 
 local searchBoxHooked = false
@@ -54,6 +84,83 @@ local function UpdateButton()
     end
 end
 
+local function SetAllHeaders(expand)
+    if expand then
+        ExpandQuestHeader(0)
+    else
+        CollapseQuestHeader(0)
+    end
+end
+
+local function ApplyDefaultState()
+    local mode = GetMode()
+    local target
+
+    if mode == "expanded" or mode == "collapsed" then
+        target = mode
+   -- elseif mode == "remember" then
+   --     target = QuestExpandAllDB.lastState
+    end
+
+    if target then
+        SetAllHeaders(target == "expanded")
+    end
+end
+
+--------------------------------------------------
+-- Context menu and options menu
+--------------------------------------------------
+
+local function ShowContextMenu(owner)
+    if not MenuUtil then return end
+
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle("When the map opens")
+
+        for _, opt in ipairs(MODES) do
+            root:CreateRadio(
+                opt.label,
+                function() return GetMode() == opt.value end,
+                function() SetMode(opt.value) end
+            )
+        end
+    end)
+end
+
+local function CreateOptionsPanel()
+    if not (Settings and Settings.RegisterVerticalLayoutCategory) then return end
+
+    local category = Settings.RegisterVerticalLayoutCategory("Quest Expand All")
+
+    modeSetting = Settings.RegisterAddOnSetting(
+        category,
+        "QUESTEXPANDALL_MODE",
+        "mode",
+        QuestExpandAllDB,
+        Settings.VarType.String,
+        "Quest header behaviour",
+        DEFAULTS.mode
+    )
+
+    local function GetOptions()
+        local container = Settings.CreateControlTextContainer()
+        for _, opt in ipairs(MODES) do
+            container:Add(opt.value, opt.label)
+        end
+        return container:GetData()
+    end
+
+    Settings.CreateDropdown(
+        category,
+        modeSetting,
+        GetOptions,
+        "What the quest log headers do each time the map is opened."
+    )
+
+    Settings.RegisterAddOnCategory(category)
+    addon.category = category
+end
+
 --------------------------------------------------
 -- Create Button
 --------------------------------------------------
@@ -73,22 +180,33 @@ local function CreateExpandButton()
         button:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -10, 24)
     end
 
-    button:SetScript("OnClick", function()
-        if AreAllHeadersExpanded() then
-            CollapseQuestHeader(0)
-        else
-            ExpandQuestHeader(0)
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    button:SetScript("OnClick", function(self, mouseButton)
+        if mouseButton == "RightButton" then
+            ShowContextMenu(self)
+            return
         end
+
+        local expanding = not AreAllHeadersExpanded()
+        SetAllHeaders(expanding)
+        QuestExpandAllDB.lastState = expanding and "expanded" or "collapsed"
     end)
 
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText("Quest Headers")
         GameTooltip:AddLine("Left click to toggle all zone headers.", 1, 1, 1, true)
+        GameTooltip:AddLine("Right click for options.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
 
     button:SetScript("OnLeave", GameTooltip_Hide)
+
+    -- Re-apply the chosen state whenever the map opens. Deferred a frame so it runs after Blizzard's own "expand current zone" logic.
+    QuestMapFrame:HookScript("OnShow", function()
+        C_Timer.After(0, ApplyDefaultState)
+    end)
 
     UpdateButton()
 end
@@ -103,6 +221,8 @@ addon:RegisterEvent("QUEST_LOG_UPDATE")
 addon:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_LOGIN" then
         self:UnregisterEvent("PLAYER_LOGIN")
+        InitDB()
+        CreateOptionsPanel()
         CreateExpandButton()
     else
         UpdateButton()
