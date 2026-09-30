@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: Quest Expand All
+## Notes: Adds an Expand All button to the quest log.
+## Author: Drink_Bepis
+## Version: 0.1
+
+QuestExpandAll.lua
