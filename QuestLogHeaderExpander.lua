@@ -130,7 +130,7 @@ end
 local function CreateOptionsPanel()
     if not (Settings and Settings.RegisterVerticalLayoutCategory) then return end
 
-    local category = Settings.RegisterVerticalLayoutCategory("Quest Expand All")
+    local category = Settings.RegisterVerticalLayoutCategory("Quest Log Header Expander")
 
     modeSetting = Settings.RegisterAddOnSetting(
         category,
