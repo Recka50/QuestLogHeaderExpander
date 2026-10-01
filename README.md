@@ -16,12 +16,12 @@ Built for **World of Warcraft Forever** using the retail UI API. Interface versi
   - **Always collapsed**
   - **Always expanded**
 - **Right-click the button** for a quick context menu to change the mode.
-- **Options panel** under *Options → AddOns → Quest Expand All* with the same setting.
+- **Options panel** under *Options → AddOns → Quest Log Header Expander* with the same setting.
 - Resizes the quest log search box so the button fits alongside it.
 
 ## Installation
 
-1. Download the latest release from the [releases](https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases) page. Don't use "Source code (zip)", as it has the wrong folder name.
+1. Download the latest release from the [releases](https://github.com/Recka50/QuestLogHeaderExpander/releases) page. Don't use "Source code (zip)", as it has the wrong folder name.
 2. Extract it into your `Interface/AddOns/` folder so you end up with `Interface/AddOns/QuestLogHeaderExpander/`.
 3. Fully restart the game (Required for first-time run).
 
@@ -47,7 +47,7 @@ QuestLogHeaderExpander/
 | --- | --- |
 | Left-click the button | Expand or collapse all zone headers |
 | Right-click the button | Open the mode context menu |
-| Options → AddOns → Quest Expand All | Choose the startup mode from a dropdown |
+| Options → AddOns → Quest Log Header Expander | Choose the startup mode from a dropdown |
 
 
 ## Configuration

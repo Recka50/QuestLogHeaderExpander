@@ -1,8 +1,10 @@
 ## Interface: 16001
 ## Title: Quest Log Header Expander
 ## SavedVariables: QuestLogHeaderExpanderDB
+## X-License: MIT
+## X-Website: https://github.com/Recka50/QuestLogHeaderExpander
 ## Notes: Adds an Expand All button to the quest log.
 ## Author: Drink_Bepis
-## Version: 0.4.1
+## Version: 0.5.0
 
 QuestLogHeaderExpander.lua

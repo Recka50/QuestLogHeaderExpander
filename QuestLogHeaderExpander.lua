@@ -11,7 +11,7 @@ local modeSetting
 
 local DEFAULTS = {
     mode = "default",   
-    lastState = nil,    
+    -- lastState = nil,    
 }
 
 local MODES = {
@@ -19,7 +19,7 @@ local MODES = {
     { value = "collapsed", label = "Always collapsed" },
     { value = "expanded",  label = "Always expanded" },
     -- Not working, to fix later
-    -- { value = "remember",  label = "Remember previous state" },
+    { value = "remember",  label = "Remember previous state" },
 }
 
 local function InitDB()
@@ -92,18 +92,44 @@ local function SetAllHeaders(expand)
     end
 end
 
+local function SnapshotHeaders()
+    local state = {}
+    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
+        local info = C_QuestLog.GetInfo(i)
+        if info and info.isHeader then
+            state[info.title] = info.isCollapsed and true or false
+        end
+    end
+    QuestLogHeaderExpanderDB.headerState = state
+end
+
+local function RestoreHeaders()
+    local saved = QuestLogHeaderExpanderDB.headerState
+    if not saved then return end
+
+    -- Go backwards: expanding/collapsing shifts the indices after it
+    for i = C_QuestLog.GetNumQuestLogEntries(), 1, -1 do
+        local info = C_QuestLog.GetInfo(i)
+        if info and info.isHeader then
+            local wantCollapsed = saved[info.title]
+            if wantCollapsed ~= nil and wantCollapsed ~= info.isCollapsed then
+                if wantCollapsed then
+                    CollapseQuestHeader(i)
+                else
+                    ExpandQuestHeader(i)
+                end
+            end
+        end
+    end
+end
+
 local function ApplyDefaultState()
     local mode = GetMode()
-    local target
 
     if mode == "expanded" or mode == "collapsed" then
-        target = mode
-   -- elseif mode == "remember" then
-   --     target = QuestLogHeaderExpanderDB.lastState
-    end
-
-    if target then
-        SetAllHeaders(target == "expanded")
+        SetAllHeaders(mode == "expanded")
+    elseif mode == "remember" then
+        RestoreHeaders()
     end
 end
 
@@ -171,6 +197,12 @@ local function CreateExpandButton()
     local parent = QuestMapFrame and QuestMapFrame.QuestsFrame
     if not parent then return end
 
+    QuestMapFrame:HookScript("OnHide", function() 
+        if GetMode() == "remember" then
+            SnapshotHeaders()
+        end
+    end)
+
     button = CreateFrame("Button", "QuestLogHeaderExpanderButton", parent, "UIPanelButtonTemplate")
     button:SetSize(50, 20)
 
@@ -190,7 +222,7 @@ local function CreateExpandButton()
 
         local expanding = not AreAllHeadersExpanded()
         SetAllHeaders(expanding)
-        QuestLogHeaderExpanderDB.lastState = expanding and "expanded" or "collapsed"
+        -- QuestLogHeaderExpanderDB.lastState = expanding and "expanded" or "collapsed"
     end)
 
     button:SetScript("OnEnter", function(self)
