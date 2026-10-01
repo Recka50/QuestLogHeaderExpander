@@ -15,6 +15,7 @@ Built for **World of Warcraft Forever** using the retail UI API. Interface versi
   - **Default**: Blizzard's standard behaviour (only the current zone is expanded)
   - **Always collapsed**
   - **Always expanded**
+  - **Remember previous state**
 - **Right-click the button** for a quick context menu to change the mode.
 - **Options panel** under *Options → AddOns → Quest Log Header Expander* with the same setting.
 - Resizes the quest log search box so the button fits alongside it.
