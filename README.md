@@ -21,15 +21,16 @@ Built for **World of Warcraft Forever** using the retail UI API. Interface versi
 
 ## Installation
 
+1. Download the latest release from the [releases](https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases) page. Don't use "Source code (zip)", as it has the wrong folder name.
+2. Extract it into your `Interface/AddOns/` folder so you end up with `Interface/AddOns/QuestLogHeaderExpander/`.
+3. Fully restart the game (Required for first-time run).
+
+### Or
+
 1. Download or clone this repository.
 2. Make sure the folder is named `QuestLogHeaderExpander` (it must match the `.toc` file name).
-3. Copy it into your game's addons directory:
-
-   ```
-   <WoW install>/Interface/AddOns/QuestLogHeaderExpander/
-   ```
-
-4. Fully restart the game (or at least fully log out/in). This is required for a first-time run.
+3. Extract it into your `Interface/AddOns/` folder so you end up with `Interface/AddOns/QuestLogHeaderExpander/`.
+4. Fully restart the game (Required for first-time run).
 
 Your folder should look like this:
 
