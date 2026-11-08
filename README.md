@@ -4,10 +4,6 @@ A small World of Warcraft addon that adds an **expand/collapse all** button to t
 
 Built for **World of Warcraft Forever** using the retail UI API. Interface version `16001`.
 
-<!-- Add screenshots here, e.g.:
-![Quest log with the +/- All button](docs/button.png)
--->
-
 ## Features
 
 - **Toggle button** next to the quest counter: `+ All` expands every zone header, `- All` collapses them.

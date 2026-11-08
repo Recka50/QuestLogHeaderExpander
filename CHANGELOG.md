@@ -4,6 +4,19 @@ All notable changes to Quest Log Header Expander are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/) (pre-1.0 while the game is in beta).
 
+## [1.0.0] - 2026-11-08
+
+### Added
+
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- Resolved bug where `+ All` / `- All` buttons moved off of quest log when highlighting quest markers on map.
 
 ## [0.5.0] - 2026-10-01
 
@@ -42,3 +55,4 @@ First public release.
 
 [0.4.1]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v0.4
 [0.5.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v0.5
+[1.0.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v1.0
