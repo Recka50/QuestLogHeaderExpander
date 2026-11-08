@@ -57,21 +57,38 @@ local function AreAllHeadersExpanded()
     return true
 end
 
+local SEARCH_BOX_WIDTH = 150
 local searchBoxHooked = false
-
+local resizing = false
+ 
 local function ResizeSearchBox()
     local sb = QuestScrollFrame and QuestScrollFrame.SearchBox
-    if not sb then return end
-
-    if sb:GetWidth() ~= 150 then
-        sb:SetWidth(150)
+    if not sb or resizing then return end
+ 
+    -- Guard against re-entrancy: SetWidth can fire OnSizeChanged synchronously
+    resizing = true
+    if math.abs(sb:GetWidth() - SEARCH_BOX_WIDTH) > 0.5 then
+        sb:SetWidth(SEARCH_BOX_WIDTH)
     end
-
+    resizing = false
+ 
     if not searchBoxHooked then
         searchBoxHooked = true
         sb:HookScript("OnShow", ResizeSearchBox)
+        -- Blizzard re-lays-out the quest log (e.g. when hovering a quest POI on
+        -- the map) without hiding/showing the box, so also re-apply whenever
+        -- its size changes.
+        sb:HookScript("OnSizeChanged", ResizeSearchBox)
+ 
+        -- Belt and braces: re-apply after Blizzard's own quest log refreshes.
+        for _, fname in ipairs({ "QuestLogQuests_Update", "QuestMapFrame_UpdateAll" }) do
+            if type(_G[fname]) == "function" then
+                hooksecurefunc(fname, ResizeSearchBox)
+            end
+        end
     end
 end
+
 
 local function UpdateButton()
     if not button then return end

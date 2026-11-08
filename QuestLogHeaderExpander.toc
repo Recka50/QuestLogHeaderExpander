@@ -5,6 +5,6 @@
 ## X-Website: https://github.com/Recka50/QuestLogHeaderExpander
 ## Notes: Adds an Expand All button to the quest log.
 ## Author: Drink_Bepis
-## Version: 0.5.0
+## Version: 1.0.0
 
 QuestLogHeaderExpander.lua
