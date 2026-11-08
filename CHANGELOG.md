@@ -4,15 +4,16 @@ All notable changes to Quest Log Header Expander are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/) (pre-1.0 while the game is in beta).
 
-## [1.0.0] - 2026-11-08
-
+## [1.1.0] - 2026-11-09
+ 
 ### Added
+ 
+- New Feature - Optional `Untrack` button that stops tracking every quest at once. Off by default; enable it under *Options → AddOns → Quest Log Header Expander*.
+- New Feature - Optional `Track` button for quest headers that tracks/untracks all quests for a zone.
+- Added `qlhe` slash commands. (Use `/qlhe help` to show commands).
+- One-time welcome popup pointing to the new options and the `/qlhe` command.
 
-- 
-
-### Changed
-
-- 
+## [1.0.0] - 2026-11-08
 
 ### Fixed
 
@@ -23,14 +24,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Option to remember previous quest log state. Keeps state of the quest log headers from when the map is closed.
-
-### Changed
-
--
-
-### Fixed
-
--
 
 ## [0.4.1] - 2026-09-31
 
@@ -56,3 +49,4 @@ First public release.
 [0.4.1]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v0.4
 [0.5.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v0.5
 [1.0.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v1.0
+[1.1.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v1.1
