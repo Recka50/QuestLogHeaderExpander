@@ -46,7 +46,7 @@ First public release.
 - Search box resize now retries until the box exists, since it isn't created until the map is first opened.
 - Duplicate `OnShow` hooks on the search box are no longer added repeatedly.
 
-[0.4.1]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v0.4
-[0.5.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v0.5
-[1.0.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v1.0
-[1.1.0]: https://gitea.recka.tech/bepis/QuestLogHeaderExpander/releases/tag/v1.1
+[0.4.1]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v0.4.1
+[0.5.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v0.5.0
+[1.0.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.0.0
+[1.1.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.1.0
