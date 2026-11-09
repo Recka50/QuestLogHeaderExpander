@@ -57,3 +57,4 @@ First public release.
 [0.5.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v0.5.0
 [1.0.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.0.0
 [1.1.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.1.0
+[1.1.1]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.1.]
