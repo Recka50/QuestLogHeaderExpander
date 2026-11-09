@@ -8,7 +8,7 @@ local modeSetting
 local untrackSetting
 local zoneTrackSetting
 local SetAllHeaders, UntrackAllQuests, SnapshotHeaders, RestoreHeaders
-local ApplyDefaultState, ShowContextMenu, UpdateButton
+local ApplyDefaultState, ShowContextMenu, UpdateButton, RefreshHeaderButtons
 
 --------------------------------------------------
 -- Saved variables / modes
@@ -68,7 +68,7 @@ local function IsZoneTrackEnabled()
 end
 
 local SEARCH_BOX_WIDTH = 150
-local UNTRACK_BUTTON_WIDTH = 54
+local UNTRACK_BUTTON_WIDTH = 56
 
 local function IsUntrackEnabled()
     return QuestLogHeaderExpanderDB and QuestLogHeaderExpanderDB.showUntrack
@@ -76,7 +76,7 @@ end
 
 local function GetSearchBoxWidth()
     if IsUntrackEnabled() then
-        return SEARCH_BOX_WIDTH - UNTRACK_BUTTON_WIDTH - 4
+        return SEARCH_BOX_WIDTH - UNTRACK_BUTTON_WIDTH - 1
     end
     return SEARCH_BOX_WIDTH
 end
@@ -138,8 +138,8 @@ local function UpdateUntrackButton()
     end
 
     if enabled then
-        untrackButton:SetPoint("LEFT", count, "RIGHT", 4, 0)
-        button:SetPoint("LEFT", untrackButton, "RIGHT", 2, 0)
+        untrackButton:SetPoint("LEFT", count, "RIGHT", 7, 0)
+        button:SetPoint("LEFT", untrackButton, "RIGHT", 0, 0)
     else
         button:SetPoint("RIGHT", count, "RIGHT", 54, 0)
     end
@@ -206,10 +206,6 @@ local function CreateExpandButton()
     untrackButton:SetScript("OnLeave", GameTooltip_Hide)
     untrackButton:Hide()
 
-    QuestMapFrame:HookScript("OnShow", function()
-        C_Timer.After(0, ApplyDefaultState)
-    end)
-
     UpdateButton()
 end
 
@@ -218,9 +214,8 @@ end
 --------------------------------------------------
 
 local HEADER_CHECKBOX_SIZE = 22
-local HEADER_BUTTON_RIGHT_OFFSET = -30
+local HEADER_BUTTON_RIGHT_OFFSET = -25
 
-local RefreshHeaderButtons
 local zoneFullyTracked = {}
 
 local function FindHeader(title)
@@ -307,7 +302,7 @@ local function GetHeaderTrackButton(frame)
 
     local b = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     b:SetSize(HEADER_CHECKBOX_SIZE, HEADER_CHECKBOX_SIZE)
-    b:SetPoint("RIGHT", frame, "RIGHT", HEADER_BUTTON_RIGHT_OFFSET, 0)
+    b:SetPoint("RIGHT", frame, "RIGHT", HEADER_BUTTON_RIGHT_OFFSET, -1)
     b:SetFrameLevel(frame:GetFrameLevel() + 5)
 
     b:SetScript("OnClick", function(self)
@@ -343,32 +338,10 @@ local function ApplyHeaderButton(frame, title)
 
         b:SetChecked(zoneFullyTracked[title] and true or false)
         b:Show()
-    end
-end
-
-function RefreshHeaderButtons()
-    local sf = QuestScrollFrame
-    if not sf then return end
-
-    local box = sf.ScrollBox
-    if box and box.ForEachFrame then
-        box:ForEachFrame(function(frame, data)
-            ApplyHeaderButton(frame, GetHeaderTitle(frame, data))
-        end)
-        return
-    end
-
-    local contents = sf.Contents or (sf.GetScrollChild and sf:GetScrollChild())
-    if not contents then return end
-
-    for _, child in ipairs({ contents:GetChildren() }) do
-        if child:IsShown() then
-            ApplyHeaderButton(child, GetHeaderTitle(child))
-        elseif child.QLHETrackButton then
-            child.QLHETrackButton:Hide()
+        elseif b then
+            b:Hide()
         end
     end
-end
 
 function RefreshHeaderButtons()
     local sf = QuestScrollFrame
