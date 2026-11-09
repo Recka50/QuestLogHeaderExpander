@@ -7,6 +7,8 @@ local untrackButton
 local modeSetting
 local untrackSetting
 local zoneTrackSetting
+local SetAllHeaders, UntrackAllQuests, SnapshotHeaders, RestoreHeaders
+local ApplyDefaultState, ShowContextMenu, UpdateButton
 
 --------------------------------------------------
 -- Saved variables / modes
@@ -86,7 +88,6 @@ local function ResizeSearchBox()
     local sb = QuestScrollFrame and QuestScrollFrame.SearchBox
     if not sb or resizing then return end
 
-    -- Guard against re-entrancy: SetWidth can fire OnSizeChanged synchronously
     resizing = true
     local width = GetSearchBoxWidth()
     if math.abs(sb:GetWidth() - width) > 0.5 then
@@ -97,7 +98,6 @@ local function ResizeSearchBox()
     if not searchBoxHooked then
         searchBoxHooked = true
         
-
         -- Sets placeholder text to 1 line, truncating instead of wrapping
         local placeholder = sb.Instructions
         if placeholder then
@@ -106,10 +106,8 @@ local function ResizeSearchBox()
         end
 
         sb:HookScript("OnShow", ResizeSearchBox)
-        -- Blizzard re-lays-out the quest log (e.g. when hovering a quest POI on the map) without hiding/showing the box, so also re-apply whenever its size changes.
         sb:HookScript("OnSizeChanged", ResizeSearchBox)
 
-        -- Belt and braces: re-apply after Blizzard's own quest log refreshes.
         for _, fname in ipairs({ "QuestLogQuests_Update", "QuestMapFrame_UpdateAll" }) do
             if type(_G[fname]) == "function" then
                 hooksecurefunc(fname, ResizeSearchBox)
@@ -118,20 +116,112 @@ local function ResizeSearchBox()
     end
 end
 
+local lastLayout   -- remembers which layout is applied so it only re-anchors on change.
+
 local function UpdateUntrackButton()
-    if not untrackButton then return end
-    untrackButton:SetShown(IsUntrackEnabled() and true or false)
+    if not (button and untrackButton) then return end
+
+    local enabled = IsUntrackEnabled() and true or false
+    untrackButton:SetShown(enabled)
+
+    if lastLayout == enabled then return end
+    lastLayout = enabled
+
+    button:ClearAllPoints()
+    untrackButton:ClearAllPoints()
+
+    local count = QuestLogQuestCount
+    if not count then
+        button:SetPoint("TOPRIGHT", button:GetParent(), "TOPRIGHT", -10, 24)
+        untrackButton:SetPoint("RIGHT", button, "LEFT", -2, 0)
+        return
+    end
+
+    if enabled then
+        untrackButton:SetPoint("LEFT", count, "RIGHT", 4, 0)
+        button:SetPoint("LEFT", untrackButton, "RIGHT", 2, 0)
+    else
+        button:SetPoint("RIGHT", count, "RIGHT", 54, 0)
+    end
+end
+
+--------------------------------------------------
+-- Create Button
+--------------------------------------------------
+
+local function CreateExpandButton()
+    if button then return end
+
+    local parent = QuestMapFrame and QuestMapFrame.QuestsFrame
+    if not parent then return end
+
+    QuestMapFrame:HookScript("OnShow", function()
+        C_Timer.After(0, function()
+            ApplyDefaultState()
+            RefreshHeaderButtons()
+        end)
+    end)
+
+    QuestMapFrame:HookScript("OnHide", function() 
+        if GetMode() == "remember" then
+            SnapshotHeaders()
+        end
+    end)
+
+    button = CreateFrame("Button", "QuestLogHeaderExpanderButton", parent, "UIPanelButtonTemplate")
+    button:SetSize(50, 20)
+
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    button:SetScript("OnClick", function(self, mouseButton)
+        if mouseButton == "RightButton" then
+            ShowContextMenu(self)
+            return
+        end
+
+        local expanding = not AreAllHeadersExpanded()
+        SetAllHeaders(expanding)
+    end)
+
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Quest Headers")
+        GameTooltip:AddLine("Left click to toggle all zone headers.", 1, 1, 1, true)
+        GameTooltip:AddLine("Right click for options.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+
+    button:SetScript("OnLeave", GameTooltip_Hide)
+
+    untrackButton = CreateFrame("Button", "QuestLogHeaderExpanderUntrackButton", parent, "UIPanelButtonTemplate")
+    untrackButton:SetSize(UNTRACK_BUTTON_WIDTH, 20)
+    untrackButton:SetText("Untrack")
+    untrackButton:SetScript("OnClick", UntrackAllQuests)
+    untrackButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Untrack All")
+        GameTooltip:AddLine("Stops tracking every quest.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    untrackButton:SetScript("OnLeave", GameTooltip_Hide)
+    untrackButton:Hide()
+
+    QuestMapFrame:HookScript("OnShow", function()
+        C_Timer.After(0, ApplyDefaultState)
+    end)
+
+    UpdateButton()
 end
 
 --------------------------------------------------
 -- Per-zone "Track" buttons on quest log headers
 --------------------------------------------------
 
-local HEADER_BUTTON_WIDTH = 52
+local HEADER_CHECKBOX_SIZE = 22
 local HEADER_BUTTON_RIGHT_OFFSET = -30
 
-local RefreshHeaderButtons   -- forward declaration, defined below
-local zoneFullyTracked = {}  -- last known state per zone title
+local RefreshHeaderButtons
+local zoneFullyTracked = {}
 
 local function FindHeader(title)
     for i = 1, C_QuestLog.GetNumQuestLogEntries() do
@@ -142,8 +232,6 @@ local function FindHeader(title)
     end
 end
 
--- Returns the zone's quest IDs and whether every one is tracked.
--- Only sees quests that are visible, so the header must be expanded.
 local function ScanZone(headerIndex)
     local ids, allTracked = {}, true
     for i = headerIndex + 1, C_QuestLog.GetNumQuestLogEntries() do
@@ -164,11 +252,9 @@ local function TrackZone(title)
     local maxWatches = (Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES)
         or MAX_WATCHABLE_QUESTS or 25
 
-    -- Look the header up by title: indices shift whenever headers expand/collapse
     local headerIndex, header = FindHeader(title)
     if not headerIndex then return end
 
-    -- A collapsed header hides its quests from the log, so open it temporarily
     local wasCollapsed = header.isCollapsed
     if wasCollapsed then ExpandQuestHeader(headerIndex) end
 
@@ -219,63 +305,51 @@ end
 local function GetHeaderTrackButton(frame)
     if frame.QLHETrackButton then return frame.QLHETrackButton end
 
-    local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    b:SetSize(HEADER_BUTTON_WIDTH, 16)
+    local b = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    b:SetSize(HEADER_CHECKBOX_SIZE, HEADER_CHECKBOX_SIZE)
     b:SetPoint("RIGHT", frame, "RIGHT", HEADER_BUTTON_RIGHT_OFFSET, 0)
     b:SetFrameLevel(frame:GetFrameLevel() + 5)
-    b:SetNormalFontObject(GameFontNormalSmall)
-    b:SetHighlightFontObject(GameFontHighlightSmall)
-    b:SetText("Track")
+
     b:SetScript("OnClick", function(self)
-        if self.zoneTitle then TrackZone(self.zoneTitle) end
-end)
+        if self.zoneTitle then
+            TrackZone(self.zoneTitle)
+        end
+        self:SetChecked(zoneFullyTracked[self.zoneTitle] and true or false)
+    end)
+
     b:SetScript("OnEnter", function(self)
-    local untracking = self:GetText() == "Untrack"
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(untracking and "Untrack Zone" or "Track Zone")
-    GameTooltip:AddLine(
-        untracking and "Stops tracking every quest in this zone."
-                    or "Tracks every quest in this zone.",
-        1, 1, 1, true
-    )
-    GameTooltip:Show()
-end)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Track Zone")
+        GameTooltip:AddLine("Tick to track every quest in this zone, untick to stop tracking them.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
     b:SetScript("OnLeave", GameTooltip_Hide)
 
     frame.QLHETrackButton = b
     return b
 end
 
--- Header frames are recycled by the scroll box, so (re)assign buttons every refresh
 local function ApplyHeaderButton(frame, title)
     local b = frame.QLHETrackButton
     if title and IsZoneTrackEnabled() then
         b = b or GetHeaderTrackButton(frame)
         b.zoneTitle = title
 
-        -- Exact for expanded zones; collapsed zones keep their last known state
         local index, header = FindHeader(title)
         if index and header and not header.isCollapsed then
             local _, allTracked = ScanZone(index)
             zoneFullyTracked[title] = allTracked
         end
 
-        local text = zoneFullyTracked[title] and "Untrack" or "Track"
-        if b:GetText() ~= text then
-            b:SetText(text)
-        end
+        b:SetChecked(zoneFullyTracked[title] and true or false)
         b:Show()
-    elseif b then
-        b:Hide()
     end
 end
 
--- Header frames are recycled, so (re)assign buttons every refresh
 function RefreshHeaderButtons()
     local sf = QuestScrollFrame
     if not sf then return end
 
-    -- Newer-style scroll box
     local box = sf.ScrollBox
     if box and box.ForEachFrame then
         box:ForEachFrame(function(frame, data)
@@ -284,7 +358,6 @@ function RefreshHeaderButtons()
         return
     end
 
-    -- Classic-style scroll frame: the headers are children of the scroll child
     local contents = sf.Contents or (sf.GetScrollChild and sf:GetScrollChild())
     if not contents then return end
 
@@ -297,12 +370,10 @@ function RefreshHeaderButtons()
     end
 end
 
--- Header frames are recycled, so (re)assign buttons every refresh
-local function RefreshHeaderButtons()
+function RefreshHeaderButtons()
     local sf = QuestScrollFrame
     if not sf then return end
 
-    -- Newer-style scroll box
     local box = sf.ScrollBox
     if box and box.ForEachFrame then
         box:ForEachFrame(function(frame, data)
@@ -311,7 +382,6 @@ local function RefreshHeaderButtons()
         return
     end
 
-    -- Classic-style scroll frame: the headers are children of the scroll child
     local contents = sf.Contents or (sf.GetScrollChild and sf:GetScrollChild())
     if not contents then return end
 
@@ -328,8 +398,6 @@ local hookedFunctions = {}
 local scrollBoxHooked = false
 
 local function HookScrollBox()
-    -- Re-run after Blizzard rebuilds the quest log. Each function is only marked
-    -- as hooked once it actually exists, so this retries until it does.
     for _, fname in ipairs({ "QuestLogQuests_Update", "QuestMapFrame_UpdateAll" }) do
         if not hookedFunctions[fname] and type(_G[fname]) == "function" then
             hookedFunctions[fname] = true
@@ -337,7 +405,6 @@ local function HookScrollBox()
         end
     end
 
-    -- Only exists on clients that use a scroll box
     local box = QuestScrollFrame and QuestScrollFrame.ScrollBox
     local events = ScrollBoxListMixin and ScrollBoxListMixin.Event
     if not scrollBoxHooked and box and box.RegisterCallback and events and events.OnDataRangeChanged then
@@ -346,7 +413,7 @@ local function HookScrollBox()
     end
 end
 
-local function UpdateButton()
+function UpdateButton()
     if not button then return end
 
     ResizeSearchBox()
@@ -360,7 +427,7 @@ local function UpdateButton()
     end
 end
 
-local function SetAllHeaders(expand)
+function SetAllHeaders(expand)
     if expand then
         ExpandQuestHeader(0)
     else
@@ -368,8 +435,7 @@ local function SetAllHeaders(expand)
     end
 end
 
-local function UntrackAllQuests()
-    -- Collect IDs first: removing a watch shifts the watch indices
+function UntrackAllQuests()
     local ids = {}
     for i = 1, C_QuestLog.GetNumQuestWatches() do
         local questID = C_QuestLog.GetQuestIDForQuestWatchIndex(i)
@@ -383,7 +449,7 @@ local function UntrackAllQuests()
     end
 end
 
-local function SnapshotHeaders()
+function SnapshotHeaders()
     local state = {}
     for i = 1, C_QuestLog.GetNumQuestLogEntries() do
         local info = C_QuestLog.GetInfo(i)
@@ -394,11 +460,10 @@ local function SnapshotHeaders()
     QuestLogHeaderExpanderDB.headerState = state
 end
 
-local function RestoreHeaders()
+function RestoreHeaders()
     local saved = QuestLogHeaderExpanderDB.headerState
     if not saved then return end
 
-    -- Go backwards: expanding/collapsing shifts the indices after it
     for i = C_QuestLog.GetNumQuestLogEntries(), 1, -1 do
         local info = C_QuestLog.GetInfo(i)
         if info and info.isHeader then
@@ -414,7 +479,7 @@ local function RestoreHeaders()
     end
 end
 
-local function ApplyDefaultState()
+function ApplyDefaultState()
     local mode = GetMode()
 
     if mode == "expanded" or mode == "collapsed" then
@@ -428,7 +493,7 @@ end
 -- Context menu and options menu
 --------------------------------------------------
 
-local function ShowContextMenu(owner)
+function ShowContextMenu(owner)
     if not MenuUtil then return end
 
     MenuUtil.CreateContextMenu(owner, function(_, root)
@@ -519,83 +584,6 @@ local function CreateOptionsPanel()
 end
 
 --------------------------------------------------
--- Create Button
---------------------------------------------------
-
-local function CreateExpandButton()
-    if button then return end
-
-    local parent = QuestMapFrame and QuestMapFrame.QuestsFrame
-    if not parent then return end
-
-    QuestMapFrame:HookScript("OnShow", function()
-        C_Timer.After(0, function()
-            ApplyDefaultState()
-            RefreshHeaderButtons()
-        end)
-    end)
-
-    QuestMapFrame:HookScript("OnHide", function() 
-        if GetMode() == "remember" then
-            SnapshotHeaders()
-        end
-    end)
-
-    button = CreateFrame("Button", "QuestLogHeaderExpanderButton", parent, "UIPanelButtonTemplate")
-    button:SetSize(50, 20)
-
-    if QuestLogQuestCount then
-        button:SetPoint("RIGHT", QuestLogQuestCount, "RIGHT", 54, 0)
-    else
-        button:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -10, 24)
-    end
-
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-    button:SetScript("OnClick", function(self, mouseButton)
-        if mouseButton == "RightButton" then
-            ShowContextMenu(self)
-            return
-        end
-
-        local expanding = not AreAllHeadersExpanded()
-        SetAllHeaders(expanding)
-        -- QuestLogHeaderExpanderDB.lastState = expanding and "expanded" or "collapsed"
-    end)
-
-    button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Quest Headers")
-        GameTooltip:AddLine("Left click to toggle all zone headers.", 1, 1, 1, true)
-        GameTooltip:AddLine("Right click for options.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-
-    button:SetScript("OnLeave", GameTooltip_Hide)
-
-    untrackButton = CreateFrame("Button", "QuestLogHeaderExpanderUntrackButton", parent, "UIPanelButtonTemplate")
-    untrackButton:SetSize(UNTRACK_BUTTON_WIDTH, 20)
-    untrackButton:SetPoint("LEFT", button, "RIGHT", 2, 0)
-    untrackButton:SetText("Untrack")
-    untrackButton:SetScript("OnClick", UntrackAllQuests)
-    untrackButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Untrack All")
-        GameTooltip:AddLine("Stops tracking every quest.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    untrackButton:SetScript("OnLeave", GameTooltip_Hide)
-    untrackButton:Hide()
-
-    -- Re-apply the chosen state whenever the map opens. Deferred a frame so it runs after Blizzard's own "expand current zone" logic.
-    QuestMapFrame:HookScript("OnShow", function()
-        C_Timer.After(0, ApplyDefaultState)
-    end)
-
-    UpdateButton()
-end
-
---------------------------------------------------
 -- Slash commands
 --------------------------------------------------
 
@@ -632,7 +620,6 @@ local function ShowHelp()
     end
 end
 
--- Goes through the Settings object when we have one so the checkbox stays in sync
 local function ToggleOption(setting, key)
     if setting then
         setting:SetValue(not setting:GetValue())
@@ -694,7 +681,7 @@ StaticPopupDialogs["QLHE_WELCOME"] = {
 
 local function ShowWelcomeIfNeeded()
     if QuestLogHeaderExpanderDB.seenWelcome then return end
-    QuestLogHeaderExpanderDB.seenWelcome = true   -- set before showing so it can never repeat
+    QuestLogHeaderExpanderDB.seenWelcome = true
     StaticPopup_Show("QLHE_WELCOME")
 end
 

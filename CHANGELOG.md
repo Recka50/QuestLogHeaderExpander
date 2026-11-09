@@ -4,6 +4,13 @@ All notable changes to Quest Log Header Expander are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/) (pre-1.0 while the game is in beta).
 
+## [1.1.1] - 2026-11-09
+ 
+### Changed
+ 
+- Swapped location of Untrack and expand/collapse button
+- Swapped buttons to checkboxes
+
 ## [1.1.0] - 2026-11-09
  
 ### Added
