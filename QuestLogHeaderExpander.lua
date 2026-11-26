@@ -7,6 +7,10 @@ local untrackButton
 local modeSetting
 local untrackSetting
 local zoneTrackSetting
+local professionButton
+local professionSetting
+local professionModeSetting
+local UpdateProfessionLayout, GetProfessionDebugLines
 local SetAllHeaders, UntrackAllQuests, SnapshotHeaders, RestoreHeaders
 local ApplyDefaultState, ShowContextMenu, UpdateButton, RefreshHeaderButtons
 
@@ -19,6 +23,9 @@ local DEFAULTS = {
     showUntrack = false,
     showZoneTrack = false,
     seenWelcome = false,
+    showProfession = false,
+    professionMode = "default",
+    seenProfessionWelcome = false,
 }
 
 local MODES = {
@@ -463,6 +470,382 @@ function ApplyDefaultState()
 end
 
 --------------------------------------------------
+-- Profession window
+--------------------------------------------------
+
+local PROF_BUTTON_WIDTH = 50
+local PROF_BUTTON_HEIGHT = 22
+local PROF_BUTTON_GAP = 3
+
+local profSearchOrig       -- original search box anchor + width, captured once
+local profLaidOut          -- which layout (enabled/disabled) is currently applied
+local profResizing = false
+local profHooked = false
+local profAppliedKey       -- profession whose startup state was applied this time it was open
+
+local function IsProfessionEnabled()
+    return QuestLogHeaderExpanderDB and QuestLogHeaderExpanderDB.showProfession
+end
+
+local function GetProfessionMode()
+    return QuestLogHeaderExpanderDB.professionMode
+end
+
+local function SetProfessionMode(value)
+    if professionModeSetting then
+        professionModeSetting:SetValue(value)
+    else
+        QuestLogHeaderExpanderDB.professionMode = value
+    end
+end
+
+local function GetRecipeList()
+    return ProfessionsFrame and ProfessionsFrame.CraftingPage and ProfessionsFrame.CraftingPage.RecipeList
+end
+
+local function GetProfessionDataProvider()
+    local list = GetRecipeList()
+    local box = list and list.ScrollBox
+    return box and box.GetDataProvider and box:GetDataProvider() or nil
+end
+
+local function GetChildNodes(node)
+    if node.GetNodes then return node:GetNodes() end
+    if node.GetChildrenNodes then return node:GetChildrenNodes() end
+    return node.nodes
+end
+
+-- Any node that has children is a header (this also covers nested sub-headers).
+local function CollectHeaderNodes(dp)
+    local headers = {}
+
+    local function walk(node)
+        local children = GetChildNodes(node)
+        if not children then return end
+        for _, child in ipairs(children) do
+            local grand = GetChildNodes(child)
+            if grand and #grand > 0 then
+                headers[#headers + 1] = child
+                walk(child)
+            end
+        end
+    end
+
+    walk(dp)
+    return headers
+end
+
+local function IsNodeCollapsed(node)
+    return node.IsCollapsed and node:IsCollapsed() and true or false
+end
+
+local function AreAllProfessionHeadersExpanded()
+    local dp = GetProfessionDataProvider()
+    if not dp then return true end
+    for _, node in ipairs(CollectHeaderNodes(dp)) do
+        if IsNodeCollapsed(node) then
+            return false
+        end
+    end
+    return true
+end
+
+local function SetAllProfessionHeaders(expand)
+    local dp = GetProfessionDataProvider()
+    if not dp then return end
+
+    for _, node in ipairs(CollectHeaderNodes(dp)) do
+        if node.SetCollapsed then
+            -- (collapsed, retainChildCollapse, skipInvalidation): rebuild once at the end.
+            node:SetCollapsed(not expand, true, true)
+        end
+    end
+
+    if dp.Invalidate then dp:Invalidate() end
+end
+
+local function GetHeaderKey(node)
+    local data = node.GetData and node:GetData()
+    local info = type(data) == "table" and data.categoryInfo or nil
+    if info then
+        local key = info.categoryID or info.name
+        return key and tostring(key) or nil
+    end
+end
+
+local function GetProfessionKey()
+    local info = ProfessionsFrame and ProfessionsFrame.GetProfessionInfo and ProfessionsFrame:GetProfessionInfo()
+    if info then
+        local key = info.professionID or info.parentProfessionID or info.professionName
+        if key then return tostring(key) end
+    end
+    return "default"
+end
+
+local function SnapshotProfessionHeaders()
+    local dp = GetProfessionDataProvider()
+    if not dp then return end
+
+    local state = {}
+    for _, node in ipairs(CollectHeaderNodes(dp)) do
+        local key = GetHeaderKey(node)
+        if key then
+            state[key] = IsNodeCollapsed(node)
+        end
+    end
+
+    if not next(state) then return end
+
+    local db = QuestLogHeaderExpanderDB
+    db.professionHeaderState = db.professionHeaderState or {}
+    db.professionHeaderState[GetProfessionKey()] = state
+end
+
+local function RestoreProfessionHeaders()
+    local dp = GetProfessionDataProvider()
+    local all = QuestLogHeaderExpanderDB.professionHeaderState
+    local saved = all and all[GetProfessionKey()]
+    if not (dp and saved) then return end
+
+    for _, node in ipairs(CollectHeaderNodes(dp)) do
+        local key = GetHeaderKey(node)
+        local wantCollapsed = key and saved[key]
+        if wantCollapsed ~= nil and node.SetCollapsed then
+            node:SetCollapsed(wantCollapsed, true, true)
+        end
+    end
+
+    if dp.Invalidate then dp:Invalidate() end
+end
+
+local function UpdateProfessionButton()
+    if not (professionButton and professionButton:IsShown()) then return end
+
+    local text = AreAllProfessionHeadersExpanded() and "- All" or "+ All"
+    if professionButton:GetText() ~= text then
+        professionButton:SetText(text)
+    end
+end
+
+-- Applies the chosen startup mode once per profession each time the window is opened.
+-- The recipe list fills in a moment after the window shows, so retry briefly until it has headers.
+local function ApplyProfessionState(attempt)
+    attempt = attempt or 0
+
+    if not IsProfessionEnabled() then return end
+    if not (ProfessionsFrame and ProfessionsFrame:IsShown()) then return end
+
+    local key = GetProfessionKey()
+    if profAppliedKey == key then return end
+
+    local dp = GetProfessionDataProvider()
+    local headers = dp and CollectHeaderNodes(dp)
+    if not headers or #headers == 0 then
+        if attempt < 10 then
+            C_Timer.After(0.1, function() ApplyProfessionState(attempt + 1) end)
+        end
+        return
+    end
+
+    profAppliedKey = key
+
+    local mode = GetProfessionMode()
+    if mode == "expanded" or mode == "collapsed" then
+        SetAllProfessionHeaders(mode == "expanded")
+    elseif mode == "remember" then
+        RestoreProfessionHeaders()
+    end
+
+    UpdateProfessionButton()
+end
+
+function UpdateProfessionLayout()
+    if not professionButton or profResizing then return end
+
+    local list = GetRecipeList()
+    local sb = list and list.SearchBox
+    if not sb then return end
+
+    local enabled = IsProfessionEnabled() and true or false
+
+    if not profSearchOrig then
+        local width = sb:GetWidth()
+        local point, rel, relPoint, x, y = sb:GetPoint(1)
+        if not point or not width or width < 40 then return end -- layout isn't ready yet; retried on show
+        profSearchOrig = { point = point, rel = rel, relPoint = relPoint, x = x, y = y, width = width }
+    end
+
+    local o = profSearchOrig
+    local width = enabled and (o.width - PROF_BUTTON_WIDTH - PROF_BUTTON_GAP) or o.width
+
+    if profLaidOut ~= enabled or math.abs(sb:GetWidth() - width) > 0.5 then
+        profLaidOut = enabled
+        profResizing = true
+        sb:ClearAllPoints()
+        sb:SetPoint(o.point, o.rel, o.relPoint, o.x, o.y)
+        sb:SetWidth(width)
+        profResizing = false
+    end
+
+    professionButton:SetShown(enabled)
+    UpdateProfessionButton()
+end
+
+local function ShowProfessionContextMenu(owner)
+    if not MenuUtil then return end
+
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle("When the profession window opens")
+
+        for _, opt in ipairs(MODES) do
+            root:CreateRadio(
+                opt.label,
+                function() return GetProfessionMode() == opt.value end,
+                function() SetProfessionMode(opt.value) end
+            )
+        end
+    end)
+end
+
+local function CreateProfessionButton()
+    if professionButton then return end
+
+    local list = GetRecipeList()
+    local sb = list and list.SearchBox
+    if not sb then return end
+
+    professionButton = CreateFrame("Button", "QuestLogHeaderExpanderProfessionButton", sb:GetParent(), "UIPanelButtonTemplate")
+    professionButton:SetSize(PROF_BUTTON_WIDTH, PROF_BUTTON_HEIGHT)
+    professionButton:SetPoint("LEFT", sb, "RIGHT", PROF_BUTTON_GAP, 0)
+    professionButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    professionButton:Hide()
+
+    professionButton:SetScript("OnClick", function(self, mouseButton)
+        if mouseButton == "RightButton" then
+            ShowProfessionContextMenu(self)
+            return
+        end
+
+        SetAllProfessionHeaders(not AreAllProfessionHeadersExpanded())
+        UpdateProfessionButton()
+    end)
+
+    professionButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Recipe Headers")
+        GameTooltip:AddLine("Left click to expand or collapse all headers.", 1, 1, 1, true)
+        GameTooltip:AddLine("Right click for options.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+
+    professionButton:SetScript("OnLeave", GameTooltip_Hide)
+end
+
+local function OnProfessionOpened()
+    -- Give Blizzard a moment to finish laying out and populating the recipe list.
+    C_Timer.After(0.1, function()
+        UpdateProfessionLayout()
+        ApplyProfessionState()
+        UpdateProfessionButton()
+    end)
+end
+
+local function OnProfessionDataChanged()
+    UpdateProfessionButton()
+
+    -- Keep the remembered state current so switching professions without closing doesn't lose it.
+    if IsProfessionEnabled() and GetProfessionMode() == "remember" and profAppliedKey == GetProfessionKey() then
+        SnapshotProfessionHeaders()
+    end
+end
+
+local profCallbackOwner = {}
+
+local function SetupProfessionFrame()
+    if profHooked then return end
+
+    local frame = ProfessionsFrame
+    local list = GetRecipeList()
+    if not (frame and list and list.SearchBox) then return end
+
+    profHooked = true
+    CreateProfessionButton()
+
+    frame:HookScript("OnShow", OnProfessionOpened)
+    frame:HookScript("OnHide", function()
+        if IsProfessionEnabled() and GetProfessionMode() == "remember" then
+            SnapshotProfessionHeaders()
+        end
+        profAppliedKey = nil
+    end)
+
+    if frame.CraftingPage then
+        frame.CraftingPage:HookScript("OnShow", OnProfessionOpened)
+    end
+
+    -- Switching professions (side tabs) re-initialises the window without hiding it.
+    if type(frame.SetProfessionInfo) == "function" then
+        hooksecurefunc(frame, "SetProfessionInfo", OnProfessionOpened)
+    end
+
+    list.SearchBox:HookScript("OnShow", UpdateProfessionLayout)
+    list.SearchBox:HookScript("OnSizeChanged", UpdateProfessionLayout)
+
+    local box = list.ScrollBox
+    local events = ScrollBoxListMixin and ScrollBoxListMixin.Event
+    if box and box.RegisterCallback and events and events.OnDataRangeChanged then
+        box:RegisterCallback(events.OnDataRangeChanged, OnProfessionDataChanged, profCallbackOwner)
+    end
+
+    if frame:IsShown() then
+        OnProfessionOpened()
+    end
+end
+
+function GetProfessionDebugLines()
+    local lines = {}
+    local function add(text) lines[#lines + 1] = text end
+
+    local list = GetRecipeList()
+    add("ProfessionsFrame: " .. tostring(ProfessionsFrame ~= nil) .. ", RecipeList: " .. tostring(list ~= nil))
+    if not list then return lines end
+
+    add("SearchBox: " .. tostring(list.SearchBox ~= nil) .. ", FilterButton: " .. tostring(list.FilterButton ~= nil)
+        .. ", button created: " .. tostring(professionButton ~= nil))
+
+    local dp = GetProfessionDataProvider()
+    add("DataProvider: " .. tostring(dp ~= nil))
+    if dp then
+        local headers = CollectHeaderNodes(dp)
+        local collapsed = 0
+        for _, node in ipairs(headers) do
+            if IsNodeCollapsed(node) then collapsed = collapsed + 1 end
+        end
+        add(#headers .. " headers found, " .. collapsed .. " collapsed")
+
+        local first = headers[1]
+        if first then
+            add("SetCollapsed: " .. tostring(first.SetCollapsed ~= nil)
+                .. ", IsCollapsed: " .. tostring(first.IsCollapsed ~= nil)
+                .. ", first header key: " .. tostring(GetHeaderKey(first)))
+        end
+    end
+
+    local names = {}
+    for k in pairs(list) do
+        if type(k) == "string" and strfind(strlower(k), "collaps") then
+            names[#names + 1] = k
+        end
+    end
+    if #names > 0 then
+        add("RecipeList fields mentioning 'collapse': " .. table.concat(names, ", "))
+    end
+
+    add("Profession key: " .. GetProfessionKey())
+    return lines
+end
+
+--------------------------------------------------
 -- Context menu and options menu
 --------------------------------------------------
 
@@ -552,6 +935,43 @@ local function CreateOptionsPanel()
         "Adds an Untrack button next to the + All button that stops tracking every quest at once."
     )
 
+    professionSetting = Settings.RegisterAddOnSetting(
+        category,
+        "QuestLogHeaderExpander_SHOW_PROFESSION",
+        "showProfession",
+        QuestLogHeaderExpanderDB,
+        Settings.VarType.Boolean,
+        "Show button on profession windows",
+        DEFAULTS.showProfession
+    )
+
+    professionSetting:SetValueChangedCallback(function()
+        UpdateProfessionLayout()
+    end)
+
+    Settings.CreateCheckbox(
+        category,
+        professionSetting,
+        "Adds a + All / - All button next to the search box in profession windows that expands or collapses every recipe header."
+    )
+
+    professionModeSetting = Settings.RegisterAddOnSetting(
+        category,
+        "QuestLogHeaderExpander_PROFESSION_MODE",
+        "professionMode",
+        QuestLogHeaderExpanderDB,
+        Settings.VarType.String,
+        "Profession header behaviour",
+        DEFAULTS.professionMode
+    )
+
+    Settings.CreateDropdown(
+        category,
+        professionModeSetting,
+        GetOptions,
+        "What the recipe headers do each time a profession window is opened. Only applies when the profession button is enabled."
+    )
+
     Settings.RegisterAddOnCategory(category)
     addon.category = category
 end
@@ -583,6 +1003,8 @@ local COMMANDS = {
     { "toggleuntrack", "Toggles the Untrack All button." },
     { "toggletrack",   "Toggles the zone Track buttons." },
     { "untrackall",    "Untracks every quest, even if the button is disabled." },
+    { "toggleprofession", "Toggles the button on profession windows." },
+    { "profdebug",     "Prints diagnostic info about the profession window (for bug reports)." },
 }
 
 local function ShowHelp()
@@ -599,6 +1021,7 @@ local function ToggleOption(setting, key)
     else
         QuestLogHeaderExpanderDB[key] = not QuestLogHeaderExpanderDB[key]
         UpdateButton()
+        UpdateProfessionLayout()
     end
     return QuestLogHeaderExpanderDB[key]
 end
@@ -624,6 +1047,14 @@ SlashCmdList["QLHE"] = function(msg)
     elseif cmd == "toggletrack" then
         Say("Zone Track buttons " .. OnOff(ToggleOption(zoneTrackSetting, "showZoneTrack")))
 
+    elseif cmd == "toggleprofession" then
+        Say("Profession window button " .. OnOff(ToggleOption(professionSetting, "showProfession")))
+
+    elseif cmd == "profdebug" then
+        for _, line in ipairs(GetProfessionDebugLines()) do
+            print("  " .. line)
+        end
+
     elseif cmd == "untrackall" then
         UntrackAllQuests()
         Say("all quests untracked.")
@@ -638,14 +1069,23 @@ end
 -- One-time welcome popup
 --------------------------------------------------
 
+local function EnableProfessionButton()
+    if professionSetting then
+        professionSetting:SetValue(true)
+    else
+        QuestLogHeaderExpanderDB.showProfession = true
+        UpdateProfessionLayout()
+    end
+    Say("profession window button enabled. You can change this any time under Options > AddOns > Quest Log Header Expander.")
+end
+
 StaticPopupDialogs["QLHE_WELCOME"] = {
-    text = "|cffffd100Quest Log Header Expander|r\n\n"
-        .. "There are now optional extras: an |cffffd100Untrack All|r button and per-zone |cffffd100Track|r buttons. "
-        .. "Both are off by default and can be enabled in the addon's options.\n\n"
-        .. "Type |cffffd100/qlhe|r for a list of commands.",
-    button1 = "Open Options",
+    text = "%s",
+    button1 = "Enable",
     button2 = "Close",
-    OnAccept = OpenOptions,
+    button3 = "Open Options",
+    OnAccept = EnableProfessionButton,
+    OnAlt = OpenOptions,
     timeout = 0,
     whileDead = true,
     hideOnEscape = true,
@@ -653,9 +1093,27 @@ StaticPopupDialogs["QLHE_WELCOME"] = {
 }
 
 local function ShowWelcomeIfNeeded()
-    if QuestLogHeaderExpanderDB.seenWelcome then return end
-    QuestLogHeaderExpanderDB.seenWelcome = true
-    StaticPopup_Show("QLHE_WELCOME")
+    local db = QuestLogHeaderExpanderDB
+    if db.seenProfessionWelcome then return end
+
+    local fresh = not db.seenWelcome
+    db.seenWelcome = true
+    db.seenProfessionWelcome = true
+
+    local text = "|cffffd100Quest Log Header Expander|r\n\n"
+
+    if fresh then
+        text = text
+            .. "Adds an expand/collapse all button to the quest log. There are also optional extras: "
+            .. "an |cffffd100Untrack All|r button and per-zone |cffffd100Track|r checkboxes. Both are off by default.\n\n"
+    end
+
+    text = text
+        .. "|cffffd100New:|r the |cffffd100+ All / - All|r button can now be added to your |cffffd100profession windows|r too. "
+        .. "It's off by default. Click |cffffd100Enable|r to turn it on.\n\n"
+        .. "Type |cffffd100/qlhe|r for a list of commands."
+
+    StaticPopup_Show("QLHE_WELCOME", text)
 end
 
 --------------------------------------------------
@@ -663,15 +1121,28 @@ end
 --------------------------------------------------
 
 addon:RegisterEvent("PLAYER_LOGIN")
+addon:RegisterEvent("ADDON_LOADED")
 addon:RegisterEvent("QUEST_LOG_UPDATE")
 pcall(addon.RegisterEvent, addon, "QUEST_WATCH_LIST_CHANGED")
-addon:SetScript("OnEvent", function(self, event)
+addon:SetScript("OnEvent", function(self, event, arg1)
     if event == "PLAYER_LOGIN" then
         self:UnregisterEvent("PLAYER_LOGIN")
         InitDB()
         CreateOptionsPanel()
         CreateExpandButton()
+
+        local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+        if ProfessionsFrame or (isLoaded and isLoaded("Blizzard_Professions")) then
+            SetupProfessionFrame()
+        end
+
         C_Timer.After(3, ShowWelcomeIfNeeded)
+
+    elseif event == "ADDON_LOADED" then
+        if arg1 == "Blizzard_Professions" and QuestLogHeaderExpanderDB then
+            SetupProfessionFrame()
+        end
+
     else
         UpdateButton()
     end

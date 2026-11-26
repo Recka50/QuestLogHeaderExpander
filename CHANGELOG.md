@@ -4,6 +4,17 @@ All notable changes to Quest Log Header Expander are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/) (pre-1.0 while the game is in beta).
 
+## [1.2.0] - 2026-11-26
+
+### Added
+
+- New Feature - Optional `+ All` / `- All` button on profession windows that expands or collapses every recipe header. Off by default; enable it under *Options → AddOns → Quest Log Header Expander*.
+- Profession windows have their own startup behaviour setting (Default, Always collapsed, Always expanded, Remember previous state), separate from the quest log. Remembered state is stored per profession.
+- Right-click the profession button for a quick context menu to change the mode.
+- The profession window search box shrinks to make room for the button.
+- `/qlhe toggleprofession` and `/qlhe profdebug` slash commands.
+- One-time popup for this update with an `Enable` button for the profession window feature.
+
 ## [1.1.1] - 2026-11-09
  
 ### Changed
@@ -57,4 +68,5 @@ First public release.
 [0.5.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v0.5.0
 [1.0.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.0.0
 [1.1.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.1.0
-[1.1.1]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.1.]
+[1.1.1]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.1.1
+[1.2.0]: https://github.com/Recka50/QuestLogHeaderExpander/releases/tag/v1.2.0

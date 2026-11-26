@@ -3,8 +3,8 @@
 ## SavedVariables: QuestLogHeaderExpanderDB
 ## X-License: MIT
 ## X-Website: https://github.com/Recka50/QuestLogHeaderExpander
-## Notes: Adds an Expand All button to the quest log.
-## Author: Drink_Bepis
-## Version: 1.1.1
+## Notes: Adds Expand All buttons to the quest log and profession windows.
+## Author: Drink_Bepis (Finbar Stormbrew - NA PvE)
+## Version: 1.2.0
 
 QuestLogHeaderExpander.lua
