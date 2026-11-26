@@ -36,8 +36,6 @@ Your folder should look like this:
 QuestLogHeaderExpander/
 ├── QuestLogHeaderExpander.toc
 ├── QuestLogHeaderExpander.lua
-├── CHANGELOG.md
-├── LICENSE
 └── README.md
 ```
 
